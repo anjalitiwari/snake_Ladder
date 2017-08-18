@@ -1,0 +1,19 @@
+{
+  "name": "snakeladderdone",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "async": "^2.5.0",
+    "bunyan": "^1.8.12",
+    "command-line-args": "^4.0.7",
+    "lodash": "^4.17.4",
+    "rand-token": "^0.3.0",
+    "require-tree": "^1.1.1"
+  }
+}
