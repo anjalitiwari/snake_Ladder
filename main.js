@@ -1,12 +1,18 @@
+'use strict';
+/**
+ * Snake and ladder with trampolines,springs and much more
+ * @author Anjali Tiwari <tiwari.anjali.11ce1045@gmail.com>
+ */
+
 var http = require('http');
 var bunyan = require("bunyan");
 var url = require('url');
 var _ = require('lodash');
 var requireTree = require("require-tree");
-
+var randtoken = require('rand-token');
 var createBoard = require('./models/generateBoard.js');
 var createBoardElements = require('./models/generateElements.js');
-
+var updateScore = require('./models/updateScore.js');
 var commandLineArgs = require('command-line-args');
 var optionDefinations = [{
         name: 'port',
@@ -19,297 +25,167 @@ var optionDefinations = [{
         alias: 's',
         type: Number,
         defaultValue: 10
-    },
-    {
-        name: 'players',
-        alias: 'n',
-        type: Number,
-        defaultValue: 5
     }
 ]
 var args = commandLineArgs(optionDefinations);
 var log = bunyan.createLogger({
-  name: 'myapp',
-  streams: [
-    {
-      level: 'debug',
-      path: '/var/log/ladder_access.log'            // log INFO and above to stdout 
-    },
-    {
-      level: 'error',
-      path: '/var/log/ladder_error.log'  // log ERROR and above to a file 
-    }
-  ]
+    name: 'myapp',
+    streams: [{
+            level: 'debug',
+            path: '/var/log/ladder_access.log' 
+        },
+        {
+            level: 'error',
+            path: '/var/log/ladder_error.log' 
+        }
+    ]
 });
 
 var server = http.createServer(handler);
 server.listen(args.port, "localhost", 1024, function() {
     console.log('Listening at http://0.0.0.0:' + args.port);
+    console.log("*****************Game is started************************");
 });
 var dimension = args.sqrLen * args.sqrLen;
-var players = {};
-var boardObj;
-var boardArray;
-var finalObj = {};
-finalObj["winner"] = "";
-var counter = 0;
-for (var i = 0; i < args.players; i++) {
-    if (!finalObj["player" + i]) {
-        finalObj["player" + i] = {}
-        finalObj["player" + i]["pos"] = [0, 0];
-        finalObj["player" + i]["score"] = 1;
-        finalObj["player" + i]["energy"] = parseInt(100 / 3);
-    }
-        log.debug({
-		"message": "player list obj created",
-                 "data" : finalObj
-                });
-}
+var finalObj = {}; // global obj to maintain state of game
+var boardObj; // Object to store elements of board
+var boardArray; // 2d array that array that represents board
+
+/*initial function call when node is started*/
 
 init();
 
+
 function handler(req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    log.debug("counter before call = " + counter + "for the player = " + args.players)
     var params = url.parse(req.url, true, true).query;
-    var dice = parseInt(params.dice);
-    log.debug({"dice number" : dice})
-    if(params.board){
-       var resJson = {
-        "boardArray" : boardArray,
-        "boardObj" : boardObj
-        }
-       
-       return res.end(JSON.stringify(resJson));
-    }
-       else if(dice > 6 || dice < 1 || isNaN(dice) || dice===undefined || dice==="" ){
-      log.error({
-        "err": "Dice value is" + params.dice,
-        "message": "Invalid Dice" 
-
-     });
-     var ack = {
-      "code" : 500,
-      "message" : "Dice should be between integer 1 and 6"
-
-      }
-     return res.end(JSON.stringify(ack,500));
-    } 
-    else if(finalObj["winner"] != ""){
-	var ack = {
-          "code":200,
-          "message": "We have got the winner",
-          "result" : finalObj
-        }
-       log.debug({"State of game when winner is found" : finalObj});
-       return res.end(JSON.stringify(ack));
-    }
-    else if(counter == args.players) {
-        counter = 0;
-     }
-    log.debug("Which player has thrown the dice = " + "player" + counter);
-    updateScore(finalObj["player" + counter], dice , function(err, data) {
-
-        if (err) {
-            log .error({
-	    "err" : err,
-            "message" : "Failed to update score of player " + player + "" + counter
-            });
-            res.end(500)
-        } else {
-            counter++
-            log.debug({
-	     "state of finalObj is" : finalObj 
-           })
-            res.end(JSON.stringify(finalObj));
-        }
-
+    log.debug({
+        "params": params
     });
- }
+    var dice = parseInt(params.dice);
 
-function updateScore(player, dice, callback) {
-    log.debug("After adding dice for " + player["score"] + dice + "with dimension = " + dimension);
-    player["energy"] = player["energy"] - 1;
-    if (player["score"] + dice == dimension && player["energy"] != 0) {
-        player["score"] = player["score"] + dice;
-        finalObj["winner"] = player
-        return callback(null, player)
-    }
-    if (player["score"] + dice < dimension) {
-        player["score"] = player["score"] + dice;
-        var pos = getIndexOfK(boardArray, player["score"])
-        player["pos"] = pos;
-        var type = "";
-        var typeStart = "";
-        var typeEnd = "";
-        for (var j in boardObj) {
-            console.log(j, "***************************")
-            var key = j
-            var data = boardObj[j];
-            for (var k in data) {
-                console.log(data[k]["start"], "______________", pos, data[k]["start"], data[k]["end"], "---------", data[k]["start"][0] == pos[0], data[k]["start"][1] == pos[1]);
-                if (data[k]["start"][0] == pos[0] && data[k]["start"][1] == pos[1] && key != "ladder") {
-                    type = key
-                    typeStart = data[k]["start"];
-                    typeEnd = data[k]["end"];
-                    break;
-                } else if (data[k]["end"][0] == pos[0] && data[k]["end"][1] == pos[1] && key == "ladder") {
-                    type = key
-                    typeStart = data[k]["end"];
-                    typeEnd = data[k]["start"];
-                    break;
-
-                }
-            }
-           
-            if (type != "")
-                break;
-        }
-        if (type != "") {
-            log.debug("For player =" + player + "type is = "+ type + "with params = "+  typeStart, typeEnd, player, dice)
-            checkHop(type, typeStart, typeEnd, player, dice, function(err, res) {
-               if(err){
-                log.error({
-		  "err" : err,
-		  "message" : "Error in updating score of player " + player
-		});
-                callback(err,null)
-                } else {
-                log.debug("Updated score for player " + player + "response =" +res)
-                callback(null, res)
-                }
-            });
-
-        } else {
-	    log.debug("No elements detected while moving")            
-            return callback(null, player)
-
-        }
-    } else {
-        log.debug("After adding dice to exiting score it goes beyond limit so do not update score for"+ player +"with score" + player["score"] + dice)
-        return callback(null, player)
-    }
-}
-
-function checkHop(type, start, end, player, dice, callback) {
-    console.log(boardArray);
-    console.log(type, start, end, player, dice, boardArray.indexOf[3, 5]);
-    console.log(boardArray[end[0]][end[1]], "**********************");
-    switch (type) {
-
-        case "snake":
-            player["score"] = boardArray[end[0]][end[1]];
-            var pos = getIndexOfK(boardArray, player["score"])
-            player["pos"] = pos;
-            return callback(null, player)
-
-
-        case "ladder":
-            player["score"] = boardArray[end[0]][end[1]];
-            var pos = getIndexOfK(boardArray, player["score"])
-            player["pos"] = pos;
-            return callback(null, player)
-
-        case "trampolines":
-            player["score"] = player["score"] + dice;
-            var pos = getIndexOfK(boardArray, player["score"])
-            player["pos"] = pos;
-            updateForTramSpr(player, dice, function(err, updatedPlayer) {
-                if (!err) {
-                    player = updatedPlayer
-                }
-            });
-            return callback(null, player)
-
-
-        case "spring":
-            if (player["score"] - dice >= 0) {
-                player["score"] = player["score"] - dice;
-                player["pos"] = getIndexOfK(boardArray, player["score"]);
-            } else {
-                player["score"] = 1;
-                player["pos"] = [0, 0];
-            }
-            updateForTramSpr(player, dice, function(err, updatedPlayer) {
-                if (!err) {
-                    player = updatedPlayer
-                }
-            })
-            return callback(null, player)
-
-    }
-}
-
-function updateForTramSpr(player, dice, callback) {
-    log.debug("In Function updateForTramSpr for player " + player)
-    console.log("in update fro tram or spring", player)
-    var pos = player["pos"];
-    var type = "";
-    var typeStart = "";
-    var typeEnd = "";
-    for (var j in boardObj) {
-        var key = j
-        var data = boardObj[j];
-        for (var k in data) {
-            if (data[k]["start"][0] == pos[0] && data[k]["start"][1] == pos[1] && key != "ladder") {
-                type = key
-                typeStart = data[k]["start"];
-                typeEnd = data[k]["end"];
-                break;
-            } else if (data[k]["end"][0] == pos[0] && data[k]["end"][1] == pos[1] && key == "ladder") {
-                type = key
-                typeStart = data[k]["end"];
-                typeEnd = data[k]["start"];
-                break;
-
-            }
-
-        }
-        if (type != "")
-            break;
-    }
-    if (type != "") {
-        log.debug("Again call to checkhop from updateForTramSpr for player"+ player)
-        checkHop(type, typeStart, typeEnd, player, dice, function(err, res) {
-            return callback(null, res)
+    if (params.startNew) {
+        // create players initial state for a game and provide a token that remains valid till game is ended
+        createPlayers(params.startNew, function(token) {
+            return res.end(JSON.stringify(token));
         });
+    } else if (dice > 6 || dice < 1 || isNaN(dice) || dice === undefined || dice === "") {
+        log.error({
+            "err": "Dice value is" + params.dice,
+            "message": "Invalid Dice"
 
-    } else {
-        return callback(null, player)
-    }
-}
+        });
+        var ack = {
+            "code": 500,
+            "message": "Dice should be between integer 1 and 6"
 
-function getIndexOfK(arr, k) {
-    for (var i = 0; i < arr.length; i++) {
-        var index = arr[i].indexOf(k);
-        if (index > -1) {
-            return [i, index];
         }
+        return res.end(JSON.stringify(ack, 500));
+    } else if (params.token && finalObj[params.token]) {
+        if (finalObj[params.token]["counter"] == Object.keys(finalObj[params.token]).length - 2)
+            // repeat the players after the last one throws dice
+            finalObj[params.token]["counter"] = 0;
+
+        if (finalObj[params.token]["winner"]) {
+            var ack = {
+                "code": 200,
+                "message": "We have got the winner",
+                "result": finalObj[params.token]
+            }
+            log.debug({
+                "State of game when winner is found": finalObj[params.token]
+            });
+            res.end(JSON.stringify(ack));
+            delete finalObj[params.token];
+        } else {
+            var countVal = finalObj[params.token]["counter"];
+            // update score of the player belonging to valid token of a game
+            updateScore.update(finalObj[params.token]["player" + countVal], finalObj[params.token], dice, dimension, boardArray, boardObj, log, function(err, data) {
+
+                if (err) {
+                    log.error({
+                        "err": err,
+                        "message": "Failed to update score of player " + finalObj[params.token]["player" + counVal] + "" + counVal
+                    });
+                    res.end(500)
+                } else {
+                    finalObj[params.token]["counter"] = finalObj[params.token]["counter"] + 1; // increement counter for to associate dice with next player
+                    log.debug({
+                        "state of finalObj is": finalObj[params.token]
+                    })
+                    return res.end(JSON.stringify(finalObj[params.token]));
+                }
+
+            });
+        }
+    } else {
+
+        var ack = {
+            "code": 500,
+            "message": "Token is invalid or game is ended for that token"
+        }
+        return res.end(JSON.stringify(ack))
+
     }
 }
+
+/**
+ * Create Players for a game 
+ * @description generate list of players as per numbers requested against a unique token
+ * @param Number NUmber of players provided by client in one game
+ * @returns token response - token valid for that game
+ */
+
+function createPlayers(num, callback) {
+    var token = randtoken.generate(16);
+    if (!finalObj[token]) {
+        finalObj[token] = {};
+        finalObj[token]["counter"] = 0;
+        finalObj[token]["winner"] = false;
+    }
+    for (var i = 0; i < num; i++) {
+        if (!finalObj[token]["player" + i]) {
+            finalObj[token]["player" + i] = {}
+            finalObj[token]["player" + i]["pos"] = [0, 0];
+            finalObj[token]["player" + i]["score"] = 1;
+            finalObj[token]["player" + i]["energy"] = parseInt(100 / 3);
+        }
+        log.debug({
+            "message": "player list obj created",
+            "data": finalObj
+        });
+    }
+    log.debug({"finalObj":finalObj});
+    callback(token)
+}
+
+/**
+ * Create Board and Elements that is snake,ladder,spring and trampolines
+ * @description generate  Board and Elements as per dimension of 2d array provided by client
+ * @param Number length of square board by client
+ */
 
 function init() {
-    createBoard.create(args.sqrLen,log,function(err, resp) {
+    createBoard.create(args.sqrLen, log, function(err, resp) {
         if (err) {
-           log.error({
-		"err" : err,
-		"message" : "Failed to create board"
-         })
-         
-        } else {
-        boardArray = resp.boardArray;
-        createBoardElements.create(args.sqrLen,boardArray,log,function(err, resp) {
-                if (err) {
-           log.error({
-                "err" : err,
-                "message" : "Failed to create board"
-         });
+            log.error({
+                "err": err,
+                "message": "Failed to create board"
+            })
 
-        } else  {
-            boardObj = resp.boardObj;
-            console.dir(boardObj,{depth:100})
-             }
-          });
+        } else {
+            boardArray = resp.boardArray;
+            createBoardElements.create(args.sqrLen, boardArray, log, function(err, resp) {
+                if (err) {
+                    log.error({
+                        "err": err,
+                        "message": "Failed to create board"
+                    });
+
+                } else {
+                    boardObj = resp.boardObj;
+                }
+            });
         }
     })
 }

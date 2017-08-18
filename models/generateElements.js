@@ -1,4 +1,9 @@
 'use strict';
+/**
+ * @module models/generateElements
+ * @generate co-ordinates of elements in board that is snake,ladder,trampolines and spring
+ * @author Anjali Tiwari <tiwari.anjali.11ce1045@gmail.com>
+ */
 var _ = require('lodash');
 var async = require('async');
 var obj = {};
@@ -25,7 +30,7 @@ function create(n,array,log, callback) {
     }
 
 function generateElements(array, rows, cols, count, element,callback) {
-    console.log("----------in generate elements------------", count, element)
+    
     var element = {};
     for (var i = count; i <= count + rows; i++) {
         var rand1 = Math.floor(Math.random() * array.length);
@@ -35,7 +40,8 @@ function generateElements(array, rows, cols, count, element,callback) {
         var key = rand1 + ":" + rand2 + ":" + rand3 + ":" + rand4;
         if (!obj[key]) {
             obj[key] = true
-            if ((!element[key]) && (rand1 != rand2) && (rand3 != rand4) ) {
+           /*check for having unique co-ordinates with placement on board as per game rules*/
+            if ((!element[key]) && (rand1 != rand2) && (rand3 != rand4) && (rand1 != rand3) && (rand3 != rand4)) {
                 start.push(rand1);
                 end.push(rand2);
                 element[key] = {};

@@ -1,4 +1,10 @@
 'use strict';
+/**
+ * @module models/generateBoard
+ * @create 2d array with zig-zag numbers placed as in actual board
+ * @author Anjali Tiwari <tiwari.anjali.11ce1045@gmail.com>
+ */
+
 var _ = require('lodash');
 var async = require('async');
 var obj = {};

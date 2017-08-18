@@ -1,10 +1,18 @@
 'use strict';
-var updateScore = require('./updateScore.js');
+/**
+ * @module models/checkHop
+ * @check whether snake,ladder,trampolines or snake is found in board
+ * @author Anjali Tiwari <tiwari.anjali.11ce1045@gmail.com>
+ */
 
-function checkHop(type, start, end, player, dice,boardArray,boardObj,callback) {
-    console.log(boardArray);
-    console.log(type, start, end, player, dice, boardArray.indexOf[3, 5]);
-    console.log(boardArray[end[0]][end[1]], "**********************");
+
+var updateScore = require('./updateScore.js');
+var findCordinates = require('./findCordinates.js');
+
+function checkHop(type, start, end, player, dice,boardArray,boardObj,log,callback) {
+
+    /*switch cases for handling all elements type in board*/
+
     switch (type) {
 
         case "snake":
@@ -24,7 +32,8 @@ function checkHop(type, start, end, player, dice,boardArray,boardObj,callback) {
             player["score"] = player["score"] + dice;
             var pos = getIndexOfK(boardArray, player["score"])
             player["pos"] = pos;
-            updateForTramSpr(player,dice,boardObj, function(err, updatedPlayer) {
+            // in this case again verify position after increementing score with dice  thrown
+            updateForTramSpr(player,dice,boardArray,boardObj,log, function(err, updatedPlayer) {
                 if (!err) {
                     player = updatedPlayer
                 }
@@ -40,21 +49,35 @@ function checkHop(type, start, end, player, dice,boardArray,boardObj,callback) {
                 player["score"] = 1;
                 player["pos"] = [0, 0];
             }
-            updateForTramSpr(player, dice, boardObj,function(err, updatedPlayer) {
+            // in this case again verify position after decreementing score with dice  thrown
+            updateForTramSpr(player, dice,boardArray, boardObj,log,function(err, updatedPlayer) {
                 if (!err) {
                     player = updatedPlayer
                 }
             })
             return callback(null, player)
 
-    }
+    }        
 }
 
-function updateForTramSpr(player,dice,boardObj,callback){
+/**
+ * Check position of landing square
+ * @description Check if landing position is snake, ladder,trampolines or spring again
+ * @param String player - current player
+ * @param Integer dice - dice value
+ * @param Array boardArray - 2d board array
+ * @param {Object} boardObj - Elements in board
+ * @returns {Object} updated player
+ */
 
- updateScore.findCordinates(boardObj,player["pos"],function(typeObj){
+
+
+function updateForTramSpr(player,dice,boardArray,boardObj,log,callback){
+  /* call module findCordinates to find the updated position of player in board */
+ findCordinates.find(boardObj,player["pos"],function(typeObj){
  if(typeObj["type"] != ""){
- checkHop.check(typeObj["type"], typeObj["typeStart"], typeObj["typeEnd"], player, dice, function(err, res) {
+ /*Again call checkhop function if updated position matches in boardobj */
+ checkHop(typeObj["type"], typeObj["typeStart"], typeObj["typeEnd"], player, dice,boardArray,boardObj,log, function(err, res) {
                if(err){
                 log.error({
                   "err" : err,
@@ -67,11 +90,21 @@ function updateForTramSpr(player,dice,boardObj,callback){
                 }
             });
    } else {
-
+      
       callback(null, player)
     }
   });
 }
+
+function getIndexOfK(arr, k) {
+    for (var i = 0; i < arr.length; i++) {
+        var index = arr[i].indexOf(k);
+        if (index > -1) {
+            return [i, index];
+        }
+    }
+}
+
 
 module.exports = {
  check:checkHop
